@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  odontosys-db:
+    image: postgres:15-alpine
+    container_name: odontosys-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: odontosys
+      POSTGRES_USER: odontosys_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - odontosys_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odontosys_admin -d odontosys"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - odontosys_network
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+
+volumes:
+  odontosys_data:
+    driver: local
+
+networks:
+  odontosys_network:
+    driver: bridge

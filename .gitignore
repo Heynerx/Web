@@ -1,0 +1,16 @@
+# Environment files
+.env
+.env.local
+
+# Secrets
+secrets/
+*.key
+*.pem
+
+# Database data
+data/
+*.sql.gz
+
+# Logs
+logs/
+*.log
