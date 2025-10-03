@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  postgres-primary:
+    image: postgres:16
+    container_name: postgres-primary
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tembo
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-primary-data:/var/lib/postgresql/data
+      - ./init-primary.sh:/docker-entrypoint-initdb.d/init-primary.sh
+    command: >
+      postgres
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+    networks:
+      - postgres-cluster
+
+  postgres-replica-1:
+    image: postgres:16
+    container_name: postgres-replica-1
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGUSER: replicator
+      PGPASSWORD: replicator_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-replica-1-data:/var/lib/postgresql/data
+      - ./init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+    depends_on:
+      - postgres-primary
+    command: >
+      bash -c "
+      until pg_isready -h postgres-primary -p 5432; do
+        echo 'Waiting for primary to be ready...';
+        sleep 2;
+      done;
+      if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+        pg_basebackup -h postgres-primary -D /var/lib/postgresql/data -U replicator -Fp -Xs -P -R;
+      fi;
+      postgres -c hot_standby=on
+      "
+    networks:
+      - postgres-cluster
+
+  postgres-replica-2:
+    image: postgres:16
+    container_name: postgres-replica-2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGUSER: replicator
+      PGPASSWORD: replicator_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-replica-2-data:/var/lib/postgresql/data
+      - ./init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+    depends_on:
+      - postgres-primary
+    command: >
+      bash -c "
+      until pg_isready -h postgres-primary -p 5432; do
+        echo 'Waiting for primary to be ready...';
+        sleep 2;
+      done;
+      if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+        pg_basebackup -h postgres-primary -D /var/lib/postgresql/data -U replicator -Fp -Xs -P -R;
+      fi;
+      postgres -c hot_standby=on
+      "
+    networks:
+      - postgres-cluster
+
+volumes:
+  postgres-primary-data:
+  postgres-replica-1-data:
+  postgres-replica-2-data:
+
+networks:
+  postgres-cluster:
+    driver: bridge
